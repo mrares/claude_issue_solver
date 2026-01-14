@@ -1,0 +1,39 @@
+# This Dockerfile extends the development Dockerfile from the target repository
+# It adds Claude CLI and necessary configurations for the issue solver
+
+# ARG will be passed during build to specify the base development Dockerfile
+ARG DEV_DOCKERFILE_PATH=./Dockerfile
+
+# Import the development environment
+FROM dev-base as development
+
+# Create a non-root user for Claude (required for --dangerously-skip-permissions)
+RUN useradd -m -s /bin/bash claude && \
+    mkdir -p /home/claude/.claude && \
+    chown -R claude:claude /home/claude
+
+# Switch to claude user for installation
+USER claude
+WORKDIR /home/claude
+
+# Copy the Claude install script (downloaded locally before build)
+COPY --chown=claude:claude claude-install.sh /tmp/claude-install.sh
+RUN chmod +x /tmp/claude-install.sh && /tmp/claude-install.sh && rm /tmp/claude-install.sh
+
+# Ensure Claude CLI is in PATH
+ENV PATH="/home/claude/.local/bin:${PATH}"
+
+# Set up git config for commits
+RUN git config --global user.name "Claude Issue Solver" && \
+    git config --global user.email "claude-bot@anthropic.com"
+
+# Create workspace directory with proper ownership
+USER root
+RUN mkdir -p /workspace && chown claude:claude /workspace
+USER claude
+
+WORKDIR /workspace
+
+# The entry point will be set when running the container
+# to execute Claude with appropriate prompts
+ENTRYPOINT ["/home/claude/.local/bin/claude"]
